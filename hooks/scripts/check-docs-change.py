@@ -2,16 +2,40 @@
 
 import json
 import sys
-from typing import Iterable
+
+
+def _extract_payload(payload_or_text):
+    if isinstance(payload_or_text, dict):
+        return payload_or_text
+    if isinstance(payload_or_text, str):
+        try:
+            parsed = json.loads(payload_or_text)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            return {}
+    return {}
+
+
+def _normalize_path(value: str) -> str:
+    if not isinstance(value, str):
+        return ""
+    p = value.strip().strip("\t\n\r \"'`()").strip()
+    if not p:
+        return ""
+    p = p.replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
+    return p
 
 
 def _as_list(value) -> list:
     if value is None:
         return []
     if isinstance(value, str):
-        return [value]
+        return [_normalize_path(value)]
     if isinstance(value, list):
-        return [v for v in value if isinstance(v, str)]
+        return [_normalize_path(v) for v in value if isinstance(v, str)]
     return []
 
 
@@ -62,18 +86,25 @@ def _is_api_contract_path(path: str) -> bool:
     if not lower_path:
         return False
 
-    api_extensions = ('.yaml', '.yml', '.json', '.graphql', '.proto', '.env', '.toml')
-    path_patterns = ['routes/', 'api/', 'schema/', 'models/', 'types/', 'config/', 'migrations/']
-    name_patterns = ['openapi', 'swagger', 'schema', 'dockerfile', 'docker-compose']
+    api_extensions = ('.yaml', '.yml', '.graphql', '.proto')
+    json_contract_files = {'openapi.json', 'swagger.json', 'api-schema.json', 'schema.json', 'spec.json'}
+    path_patterns = ['routes/', 'api/', 'schema/', 'models/', 'types/', 'contracts/', 'migrations/']
+    name_patterns = ['openapi', 'swagger', 'schema', 'api-contract', 'graphql', 'protobuf', 'grpc']
 
-    if any(lower_path.endswith(ext) for ext in api_extensions):
+    if lower_path.split('/')[-1] in json_contract_files:
+        return True
+
+    basename = lower_path.rsplit('/', 1)[-1]
+    if basename in {'openapi.json', 'swagger.json'}:
         return True
 
     if any(pattern in lower_path for pattern in path_patterns):
+        return any(lower_path.endswith(ext) for ext in api_extensions) or any(p in basename for p in name_patterns)
+
+    if any(pattern in basename for pattern in name_patterns):
         return True
 
-    basename = lower_path.split('/')[-1]
-    if any(pattern in basename for pattern in name_patterns):
+    if any(lower_path.endswith(ext) for ext in api_extensions):
         return True
 
     return False
@@ -86,7 +117,8 @@ def main():
     except (json.JSONDecodeError, Exception):
         sys.exit(0)
 
-    tool_input = data.get("tool_input", {}) if isinstance(data, dict) else {}
+    raw_tool_input = data.get("tool_input", {}) if isinstance(data, dict) else {}
+    tool_input = _extract_payload(raw_tool_input)
     paths = _collect_paths(tool_input)
 
     if not paths:

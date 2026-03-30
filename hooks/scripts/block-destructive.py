@@ -56,11 +56,50 @@ def normalize(command: str) -> str:
     return " ".join(command.lower().split())
 
 
+def _has_rm_recursive_root(command: str):
+    if not command:
+        return False
+
+    # Split on common command separators. Keep simple and conservative.
+    for segment in re.split(r"[;|&]", command):
+        seg = segment.strip()
+        if not seg.lower().startswith("rm"):
+            continue
+        tokens = seg.split()
+        if not tokens or tokens[0] != "rm":
+            continue
+
+        has_r = False
+        has_f = False
+        seen_target = False
+        for t in tokens[1:]:
+            t = t.strip().strip('"\'')
+            if t.startswith("--"):
+                if t == "--":
+                    seen_target = True
+                continue
+
+            if not seen_target and t.startswith("-") and len(t) > 1:
+                opts = t[1:]
+                if "r" in opts:
+                    has_r = True
+                if "f" in opts:
+                    has_f = True
+                continue
+
+            if t.startswith("/") and (has_r and has_f):
+                return True
+
+            seen_target = True
+
+    return False
+
+
 def match_pattern(command: str):
     # Strict but useful regexes with anchors for destructive paths, while avoiding common false positives.
     patterns = [
-        # rm -rf on root or absolute path, or rm -rf target recursively under /tmp etc.
-        (r"(?:^|[;(&|])\s*rm\s+(-[rf]+\s+)?-rf\s+/(?:[^\s]*|\\$\{[^}]+\})", "rm -rf /"),
+        # rm recursive+force to root or absolute path, or rm recursive+force target recursively under /tmp etc.
+        (r"(?:^|[;(&|])\s*rm\s+(-[rf]+\s+)?-f?r?\s*(?:-[rf]+\s+)?\s*/(?:[^\s]*|\\$\{[^}]+\})", "rm -rf /"),
         (r"(^|[;(&|])\s*rm\s+(-[rf]+\s+)?-rf\s+\*", "rm -rf *"),
         (r"(^|[;(&|])\s*rm\s+(-[rf]+\s+)?-rf\s+\$\{[^}]+\}", "rm -rf ${...}"),
         # common destructive git operations
@@ -77,6 +116,9 @@ def match_pattern(command: str):
         (r"\b>\s*/dev/(sd|hd|nvme|vd)", "dd-like redirect to /dev/*"),
         (r"\b:\s*\(\)\s*\{", "fork bomb"),
     ]
+
+    if _has_rm_recursive_root(command):
+        return "rm -rf /"
 
     for pattern, reason in patterns:
         if re.search(pattern, command):

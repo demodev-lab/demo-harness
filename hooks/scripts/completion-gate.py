@@ -7,6 +7,139 @@ from pathlib import Path
 import sys
 
 
+def _normalize_path(value: str) -> str:
+    if not isinstance(value, str):
+        return ""
+    p = value.strip().strip("\t\n\r \"'`()").strip()
+    if not p:
+        return ""
+    # normalize Windows paths for cross-platform detection
+    p = p.replace("\\", "/")
+    # keep relative paths stable across runs
+    if p.startswith("./"):
+        p = p[2:]
+    while p.startswith("./"):
+        p = p[2:]
+    return p
+
+
+def _collect_paths(payload):
+    paths = set()
+    if not isinstance(payload, dict):
+        return []
+
+    path_candidates = [
+        payload.get("file_path"),
+        payload.get("path"),
+        payload.get("cwd"),
+        payload.get("working_directory"),
+        payload.get("changed_files"),
+        payload.get("files"),
+        payload.get("file_paths"),
+        payload.get("targets"),
+        payload.get("path_list"),
+        payload.get("paths"),
+    ]
+
+    def _add(v):
+        if isinstance(v, str):
+            s = _normalize_path(v)
+            if s:
+                paths.add(s)
+        elif isinstance(v, list):
+            for x in v:
+                _add(x)
+
+    for item in path_candidates:
+        _add(item)
+
+    for s in _collect_strings(payload):
+        for tok in re.findall(r"(?:^|[\s'\"\\(])([A-Za-z0-9_./-]*[/\\][A-Za-z0-9_./@-]*|\.[A-Za-z0-9_./-]+)", s):
+            normalized = _normalize_path(tok)
+            if normalized:
+                paths.add(normalized)
+
+    return sorted({p for p in paths if isinstance(p, str) and p.strip()})
+
+
+def _iter_file_lines(path: Path):
+    try:
+        with path.open('r', encoding='utf-8', errors='ignore') as fp:
+            for idx, line in enumerate(fp, 1):
+                yield idx, line
+    except OSError:
+        return
+
+
+def _extract_payload(payload_or_text):
+    if isinstance(payload_or_text, dict):
+        return payload_or_text
+
+    if isinstance(payload_or_text, str):
+        try:
+            parsed = json.loads(payload_or_text)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            return {}
+
+    return {}
+
+
+def scan_debug_artifacts(paths, payload: dict):
+    artifacts = []
+    if not isinstance(payload, dict) or not isinstance(paths, (list, tuple, set)):
+        return artifacts
+
+    workdir = payload.get('working_directory') or payload.get('cwd') or os.getcwd()
+    debug_patterns = {
+        'console.log': re.compile(r"\bconsole\.log\s*\("),
+        'debugger': re.compile(r"\bdebugger\b"),
+        'TODO': re.compile(r"\bTODO\b"),
+        'FIXME': re.compile(r"\bFIXME\b"),
+        'pdb.set_trace': re.compile(r"\bpdb\.set_trace\b"),
+        'breakpoint()': re.compile(r"\bbreakpoint\s*\("),
+        'import pdb': re.compile(r"^\s*import\s+pdb\b|^\s*from\s+pdb\s+import\b"),
+    }
+
+    candidate_ext = {
+        '.py', '.ts', '.tsx', '.js', '.jsx', '.java', '.kt', '.scala', '.rb', '.go', '.rs', '.c', '.cpp', '.h', '.hpp', '.cs', '.swift', '.php', '.vue', '.svelte'
+    }
+
+    for raw_path in paths:
+        if not isinstance(raw_path, str):
+            continue
+        candidate = _normalize_path(raw_path)
+        if not candidate:
+            continue
+
+        # avoid evaluating cwd itself or top-level directories when mistakenly picked
+        if candidate in {'/', '.', '..'}:
+            continue
+
+        p = Path(candidate)
+        if not p.is_absolute():
+            p = Path(workdir) / p
+
+        ext = p.suffix.lower()
+        if not p.is_file() or ext not in candidate_ext:
+            continue
+
+        for lineno, line in _iter_file_lines(p):
+            for name, pattern in debug_patterns.items():
+                if pattern.search(line):
+                    artifacts.append({
+                        'file': str(candidate),
+                        'line': lineno,
+                        'pattern': name,
+                        'snippet': line.strip()[:140],
+                    })
+                    # keep one hit per file for quick signal; enough to block and avoid spam
+                    break
+
+    return artifacts
+
+
 def _collect_strings(obj, max_depth=16):
     if max_depth <= 0:
         return []
@@ -49,46 +182,6 @@ def _flatten_fields(payload: dict):
             for v in cur:
                 stack.append(v)
     return fields
-
-
-def _collect_paths(payload):
-    paths = set()
-    if not isinstance(payload, dict):
-        return []
-
-    path_candidates = [
-        payload.get("file_path"),
-        payload.get("path"),
-        payload.get("cwd"),
-        payload.get("working_directory"),
-        payload.get("changed_files"),
-        payload.get("files"),
-        payload.get("file_paths"),
-        payload.get("targets"),
-        payload.get("path_list"),
-        payload.get("paths"),
-    ]
-
-    def _add(v):
-        if isinstance(v, str):
-            s = v.strip()
-            if s:
-                paths.add(s)
-        elif isinstance(v, list):
-            for x in v:
-                _add(x)
-
-    for item in path_candidates:
-        _add(item)
-
-    for s in _collect_strings(payload):
-        for tok in re.findall(r"(?:^|[\s'\"\\(])([A-Za-z0-9_./-]*[/\\][A-Za-z0-9_./@-]*|\.[A-Za-z0-9_./-]+)", s):
-            tok = tok.strip('\'"()')
-            if tok:
-                paths.add(tok)
-
-    return sorted({p for p in paths if isinstance(p, str) and p.strip()})
-
 
 def classify_files(paths):
     buckets = {"code": set(), "docs": set(), "config": set(), "other": set()}
@@ -160,6 +253,9 @@ def has_verification_evidence(strings, context_payload=None):
 
     lint_patterns = [
         r"\bruff\s+check\b",
+        r"\bnpm\s+run\s+lint\b",
+        r"\bpnpm\s+run\s+lint\b",
+        r"\byarn\s+run\s+lint\b",
         r"\beslint\b",
         r"\bflake8\b",
         r"\bpylint\b",
@@ -175,11 +271,22 @@ def has_verification_evidence(strings, context_payload=None):
         r"\bpyright\b",
         r"\btsc\b(?:(?:\s+--noemit|\s+--noEmit))?",
         r"\bgo\s+vet\b",
-        r"\bgo\s+test\b",
+        r"\bdeno\s+check\b",
     ]
 
+    contract_patterns = [
+        r"\bopenapi\b",
+        r"\bspectral\b",
+        r"\bschema\b\s+(?:validation|lint|check)\b",
+        r"\bprisma\s+format\b",
+        r"\bswag\b",
+        r"\bopenapi-generator\b",
+        r"\bprotoc\b",
+    ]
+
+    # Exit-like success / failure signatures in text output
     result_pass = [
-        r"\b(\d+\s+passed|\d+\s+failed\s+|ok\b|all tests passed|test suite passed|\bsuccess\b|\bsucceeded\b|exit\s+code\s*:\s*0|exitcode\s*[:\s]?0)"
+        r"\b(\d+\s+passed|ok\b|all tests passed|test suite passed|\bsuccess\b|\bsucceeded\b|exit\s+code\s*:\s*0|exitcode\s*[:\s]?0)"
     ]
 
     result_fail = [
@@ -188,11 +295,13 @@ def has_verification_evidence(strings, context_payload=None):
         r"\btraceback\b",
         r"\bassertionerror\b",
         r"\bnon-zero\b",
+        r"\bcommand failed\b",
     ]
 
     test_match = _match_any(test_patterns, joined)
     lint_match = _match_any(lint_patterns, joined)
     type_match = _match_any(type_patterns, joined)
+    contract_match = _match_any(contract_patterns, joined)
 
     pass_hit = any(re.search(p, joined) for p in result_pass)
     fail_hit = any(re.search(p, joined) for p in result_fail)
@@ -222,16 +331,21 @@ def has_verification_evidence(strings, context_payload=None):
         "has_tests": bool(test_match),
         "has_lint": bool(lint_match),
         "has_typecheck": bool(type_match),
+        "has_contract_check": bool(contract_match),
         "evidence": {
             "test_pattern": test_match,
             "lint_pattern": lint_match,
             "typecheck_pattern": type_match,
+            "contract_check_pattern": contract_match,
             "result": exit_status,
         },
     }
 
 
 def is_read_only_payload(payload: dict):
+    if not isinstance(payload, dict):
+        return True
+
     if isinstance(payload.get('read_only'), bool) and payload.get('read_only'):
         return True
     if isinstance(payload.get('read_only_session'), bool) and payload.get('read_only_session'):
@@ -242,27 +356,68 @@ def is_read_only_payload(payload: dict):
         return True
 
     command = payload.get('tool_name')
-    if isinstance(command, str) and command.lower() in {'read', 'grep', 'glob', 'list'}:
+    if isinstance(command, str) and command.lower() in {'read', 'grep', 'glob', 'list', 'search'}:
+        return True
+
+    # Non-mutating tool hints
+    if payload.get('tool') in {'Read', 'ReadFile', 'Glob', 'Grep', 'List'}:
         return True
 
     return False
 
 
 def completion_request_explicit(payload: dict) -> bool:
-    tokens = ['complete', 'completed', 'done', 'finish', 'finished', 'ready', 'ready to handoff']
+    tokens = [
+        'complete', 'completed', '완료', 'done', 'finish', 'finished', 'ready', 'ready to handoff',
+        'handoff', 'all set', 'finish work', '작업 완료', '업무 완료', 'done!', 'ready to merge',
+    ]
 
     search_fields = []
-    for k in ['message', 'prompt', 'summary', 'assistant_response', 'response', 'text', 'final', 'note']:
+    for k in ['message', 'prompt', 'summary', 'assistant_response', 'response', 'text', 'final', 'note', 'user_message', 'completion_note']:
         v = payload.get(k)
         if isinstance(v, str):
             search_fields.append(v.lower())
 
     if payload.get('completion_requested') is True:
         return True
+    if payload.get('completion') is True:
+        return True
+
     if not search_fields:
         return False
     joined = ' '.join(search_fields)
     return any(tok in joined for tok in tokens)
+
+
+def has_docs_review_signal(payload: dict) -> bool:
+    check_tokens = [
+        'docs reviewed', 'documentation reviewed', 'docs update', 'documentation updated', '문서 리뷰',
+        '문서 검토', '문서 확인', '문서 업데이트', 'readme updated', 'README updated',
+    ]
+    joined = ''
+    for k in ['summary', 'assistant_response', 'response', 'text', 'final', 'note', 'message', 'prompt']:
+        v = payload.get(k)
+        if isinstance(v, str):
+            joined += ' ' + v.lower()
+    return any(tok in joined for tok in check_tokens)
+
+
+def is_contract_path(path: str) -> bool:
+    if not isinstance(path, str):
+        return False
+
+    lower_path = path.lower().strip()
+    if not lower_path:
+        return False
+
+    contract_patterns = ['openapi', 'schema', 'swagger', 'api-contract', 'proto', 'graphql', 'grpc']
+    if any(p in lower_path for p in contract_patterns):
+        return True
+
+    if any(lower_path.endswith(ext) for ext in ('.yaml', '.yml', '.json', '.graphql', '.proto')) and any(seg in lower_path for seg in ('api/', 'schema/', 'contracts/', 'routes/')):
+        return True
+
+    return False
 
 
 def main():
@@ -274,7 +429,12 @@ def main():
     except Exception:
         return 0
 
-    payload = data.get('tool_input', {}) if isinstance(data, dict) else {}
+    data_dict = data if isinstance(data, dict) else {}
+    if not data_dict:
+        return 0
+
+    raw_payload = data_dict.get('tool_input', data_dict)
+    payload = _extract_payload(raw_payload)
     if not isinstance(payload, dict):
         return 0
 
@@ -292,21 +452,37 @@ def main():
     has_config = bool(buckets['config'])
     has_docs_only = bool(buckets['docs']) and not (has_code or has_config or buckets['other'])
 
-    evidence = has_verification_evidence(_collect_strings(payload) + [json.dumps(payload)], context_payload=payload)
+    evidence_payload = {k: v for k, v in payload.items() if k not in {
+        'file_path', 'path', 'cwd', 'working_directory', 'changed_files', 'files', 'file_paths',
+        'targets', 'path_list', 'paths'
+    }}
+    evidence = has_verification_evidence(_collect_strings(evidence_payload) + [json.dumps(evidence_payload)], context_payload=evidence_payload)
     is_complete = completion_request_explicit(payload)
+    debug_artifacts = scan_debug_artifacts(changed_paths, payload)
     is_docs_only = not (buckets['code'] or buckets['config'] or buckets['other']) and bool(buckets['docs'])
+
+    contract_changed = any(is_contract_path(p) for p in changed_paths)
 
     if has_code:
         # require quality evidence for code/config changes
         has_quality = evidence['has_tests'] and (evidence['has_lint'] or evidence['has_typecheck'])
         quality_passed = evidence['evidence']['result'] in {'passed', 'unknown'} if has_quality else False
 
-        if not has_quality or not quality_passed:
+        # contract/config related code paths additionally require contract-check evidence
+        has_contract_quality = True
+        if contract_changed:
+            has_contract_quality = evidence['has_contract_check']
+
+        if not has_quality or not quality_passed or not has_contract_quality or bool(debug_artifacts):
             missing = []
             if not evidence['has_tests']:
                 missing.append('tests')
             if not (evidence['has_lint'] or evidence['has_typecheck']):
                 missing.append('lint_or_typecheck')
+            if contract_changed and not evidence['has_contract_check']:
+                missing.append('contract_check')
+            if debug_artifacts:
+                missing.append('debug_artifacts')
             if evidence['evidence']['result'] == 'failed':
                 missing.append('verification_result indicates failure')
 
@@ -319,13 +495,16 @@ def main():
                 "requiredEvidence": {
                     "tests": True,
                     "lintOrTypecheck": True,
-                    "docAndContractCheck": True,
+                    "docAndContractCheck": contract_changed,
+                    "debugArtifacts": True,
                 },
                 "evidence": {
                     "tests": evidence['has_tests'],
                     "lint": evidence['has_lint'],
                     "typecheck": evidence['has_typecheck'],
+                    "contractCheck": evidence['has_contract_check'],
                     "result": evidence['evidence']['result'],
+                    "debugArtifacts": debug_artifacts[:10],
                     "matched": evidence['evidence'],
                 },
             }
@@ -335,24 +514,25 @@ def main():
         return 0
 
     if has_docs_only:
-        if is_complete and not evidence['has_tests'] and not evidence['has_lint'] and not evidence['has_typecheck']:
+        if is_complete and not has_docs_review_signal(payload):
             out = {
                 "systemMessage": (
-                    "Docs-only completion request detected. No verification commands found in payload; "
-                    "approve if explicit docs review note is present, otherwise add short verification note."
+                    "Docs-only completion request detected. No explicit docs verification note found in payload; "
+                    "please append a short docs review confirmation before final handoff."
                 )
             }
             print(json.dumps(out), file=sys.stderr)
         return 0
 
     if has_config and not is_docs_only:
-        out = {
-            "systemMessage": (
-                "CONFIG/SCHEMA-related paths changed. Capture a contract/check command output in session context "
-                "(e.g., docs update check, schema validation, API lint)."
-            )
-        }
-        print(json.dumps(out), file=sys.stderr)
+        if contract_changed and not evidence['has_contract_check']:
+            out = {
+                "systemMessage": (
+                    "CONFIG/SCHEMA-related paths changed. Capture a contract/check command output in session context "
+                    "(e.g., docs update check, schema validation, API lint) before handoff."
+                )
+            }
+            print(json.dumps(out), file=sys.stderr)
 
     return 0
 

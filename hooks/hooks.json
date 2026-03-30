@@ -1,5 +1,5 @@
 {
-  "description": "Harness Engineering hooks - completion gate, docs change detection, destructive command blocking",
+  "description": "Harness Engineering hooks - completion gate, docs change detection, destructive command blocking, proactive skill suggestions",
   "hooks": {
     "Stop": [
       {
@@ -25,6 +25,26 @@
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/check-docs-change.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/suggest-harness-audit.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/suggest-failure-absorb.py",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/suggest-rule-promote.py",
+            "timeout": 5
           }
         ]
       }
