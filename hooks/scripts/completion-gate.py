@@ -488,20 +488,6 @@ def main():
         print(json.dumps(out), file=sys.stderr)
         return 2
 
-    # Advisory reminder — Stop hook cannot verify test/lint execution history
-    if has_code:
-        reminders = ["테스트 실행", "lint/typecheck 확인"]
-        if any(is_contract_path(p) for p in changed_paths):
-            reminders.append("API contract/schema 검증")
-
-        out = {
-            "systemMessage": (
-                "Completion reminder: code changes detected in "
-                f"{len(buckets['code'])} file(s). Verify: {', '.join(reminders)}."
-            ),
-        }
-        print(json.dumps(out))
-
     return 0
 
 
