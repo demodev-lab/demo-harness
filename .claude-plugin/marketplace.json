@@ -1,0 +1,15 @@
+{
+  "name": "demo-harness",
+  "owner": {
+    "name": "demodev-lab",
+    "url": "https://github.com/demodev-lab"
+  },
+  "plugins": [
+    {
+      "name": "harness-engineering",
+      "source": "./",
+      "description": "Harness Engineering Manual 플러그인 — 실패 흡수 루프, 완료 게이트, 에이전트 팀 아키텍처를 갖춘 AI 개발 운영 시스템을 자동 구축한다.",
+      "version": "1.0.0"
+    }
+  ]
+}

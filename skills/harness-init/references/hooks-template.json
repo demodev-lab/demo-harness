@@ -1,0 +1,45 @@
+{
+  "description": "{{project_name}} Harness hooks",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/completion-gate.py",
+            "timeout": 30
+          },
+          {
+            "type": "prompt",
+            "prompt": "Completion gate for {{project_name}}. Before approving completion, validate:\n1) Lint and typecheck/tests are run for changed code paths\n2) API/contract/schema/docs consistency is checked\n3) Verification evidence is present in the session logs\n\nIf any required item is missing, return block with exact missing item. If not applicable, explain clearly why.\n\nFor documentation-only or exploratory sessions, return approve with what was verified and what was intentionally skipped.",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/check-docs-change.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/block-destructive.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
