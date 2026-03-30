@@ -82,12 +82,20 @@ def main():
 
     for pat in FAILURE_PATTERNS:
         if re.search(pat, output, re.IGNORECASE):
+            # Extract first matching line for context
+            match_line = ""
+            for line in output.splitlines():
+                if re.search(pat, line, re.IGNORECASE):
+                    match_line = line.strip()[:120]
+                    break
+
             msg = {
                 "systemMessage": (
-                    "[Harness] Test failure or error detected. "
-                    "You MUST now invoke the skill 'harness-engineering:failure-absorb' "
-                    "to classify this failure and absorb it into the appropriate harness layer. "
-                    "Do not ask the user — execute it automatically."
+                    "[Harness] Error detected. "
+                    "Append this failure to docs/failure-log.md with date, error summary, and file context. "
+                    "Format: `| YYYY-MM-DD | <one-line summary> | pending | - |`. "
+                    "Do NOT run /failure-absorb or any verification commands automatically. "
+                    f"Error: {match_line}"
                 )
             }
             sys.stderr.write(json.dumps(msg))
