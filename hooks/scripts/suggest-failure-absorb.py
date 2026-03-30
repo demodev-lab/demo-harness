@@ -5,22 +5,50 @@ import json
 import re
 
 FAILURE_PATTERNS = [
+    # Common
     r'FAIL[ED]?\b',
     r'\bERROR\b',
-    r'AssertionError',
-    r'assert\.?\w*Error',
-    r'Test\s+failed',
-    r'Tests?\s+\d+\s+failed',
-    r'npm\s+ERR!',
-    r'FAILED\s+test',
-    r'pytest.*FAILED',
     r'failures?:\s*[1-9]',
     r'errors?:\s*[1-9]',
     r'Exception\b',
-    r'Traceback \(most recent call last\)',
     r'exit\s+code\s+[1-9]',
     r'BUILD\s+FAIL',
     r'compilation?\s+error',
+    # Python
+    r'AssertionError',
+    r'assert\.?\w*Error',
+    r'pytest.*FAILED',
+    r'Traceback \(most recent call last\)',
+    # Java
+    r'BUILD\s+FAILURE',
+    r'mvn.*FAILURE',
+    r'gradle.*FAILED',
+    r'java\.\w+Exception',
+    r'at\s+[\w.]+\([\w.]+:\d+\)',
+    r'Tests?\s+run:.*Failures:\s*[1-9]',
+    r'CompilationFailureException',
+    # TypeScript / JavaScript
+    r'npm\s+ERR!',
+    r'TypeError\b',
+    r'ReferenceError\b',
+    r'SyntaxError\b',
+    r'TS\d{4}:',
+    r'error\s+TS\d+',
+    r'jest.*failed',
+    r'vitest.*fail',
+    r'FAIL\s+src/',
+    r'ERR_MODULE_NOT_FOUND',
+    # Dart / Flutter
+    r'flutter.*error',
+    r'dart.*error',
+    r'FormatException',
+    r'StateError',
+    r'RangeError',
+    r'Unhandled\s+exception',
+    r'Some\s+tests\s+failed',
+    r'flutter\s+test.*fail',
+    r'pub\s+get\s+failed',
+    r'analysis_options.*error',
 ]
 
 IGNORE_PATTERNS = [
@@ -29,6 +57,10 @@ IGNORE_PATTERNS = [
     r'0\s+failed',
     r'0\s+errors?',
     r'All\s+tests?\s+passed',
+    r'no\s+issues\s+found',
+    r'No\s+errors\s+found',
+    r'BUILD\s+SUCCESSFUL',
+    r'passed,\s+0\s+failed',
 ]
 
 def main():
@@ -53,8 +85,9 @@ def main():
             msg = {
                 "systemMessage": (
                     "[Harness] Test failure or error detected. "
-                    "Consider running /failure-absorb to classify this failure "
-                    "and absorb it into the appropriate harness layer for prevention."
+                    "You MUST now invoke the skill 'harness-engineering:failure-absorb' "
+                    "to classify this failure and absorb it into the appropriate harness layer. "
+                    "Do not ask the user — execute it automatically."
                 )
             }
             sys.stderr.write(json.dumps(msg))
