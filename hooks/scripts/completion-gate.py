@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import subprocess
 from pathlib import Path
 import sys
 
@@ -126,6 +127,10 @@ def scan_debug_artifacts(paths, payload: dict):
             continue
 
         for lineno, line in _iter_file_lines(p):
+            # Skip pattern definitions and comments to avoid false positives
+            stripped = line.strip()
+            if 're.compile' in stripped or stripped.startswith('#') or stripped.startswith('//'):
+                continue
             for name, pattern in debug_patterns.items():
                 if pattern.search(line):
                     artifacts.append({
@@ -420,119 +425,82 @@ def is_contract_path(path: str) -> bool:
     return False
 
 
-def main():
+def _get_git_changed_files():
+    """Get actually changed files from git (staged + unstaged)."""
+    files = set()
     try:
-        raw = sys.stdin.read()
-        if not raw.strip():
-            return 0
-        data = json.loads(raw)
+        for cmd in [
+            ['git', 'diff', '--name-only'],
+            ['git', 'diff', '--name-only', '--cached'],
+        ]:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                files.update(f.strip() for f in result.stdout.strip().split('\n') if f.strip())
     except Exception:
+        pass
+    return sorted(files)
+
+
+def _get_git_root():
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--show-toplevel'],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return os.getcwd()
+
+
+def main():
+    # Consume stdin (required by hook protocol) but don't rely on it for file detection
+    try:
+        sys.stdin.read()
+    except Exception:
+        pass
+
+    # Use git to detect actual file changes — Stop hook payload lacks this info
+    changed_paths = _get_git_changed_files()
+    if not changed_paths:
         return 0
 
-    data_dict = data if isinstance(data, dict) else {}
-    if not data_dict:
-        return 0
-
-    raw_payload = data_dict.get('tool_input', data_dict)
-    payload = _extract_payload(raw_payload)
-    if not isinstance(payload, dict):
-        return 0
-
-    if is_read_only_payload(payload):
-        print('{"systemMessage":"Read-only / docs-only session detected. completion-gate: INFO only."}')
-        return 0
-
-    if payload.get('skip_completion_gate') is True:
-        print('{"systemMessage":"completion gate intentionally skipped by explicit flag."}')
-        return 0
-
-    changed_paths = _collect_paths(payload)
     buckets = classify_files(changed_paths)
     has_code = bool(buckets['code'])
     has_config = bool(buckets['config'])
-    has_docs_only = bool(buckets['docs']) and not (has_code or has_config or buckets['other'])
 
-    evidence_payload = {k: v for k, v in payload.items() if k not in {
-        'file_path', 'path', 'cwd', 'working_directory', 'changed_files', 'files', 'file_paths',
-        'targets', 'path_list', 'paths'
-    }}
-    evidence = has_verification_evidence(_collect_strings(evidence_payload) + [json.dumps(evidence_payload)], context_payload=evidence_payload)
-    is_complete = completion_request_explicit(payload)
-    debug_artifacts = scan_debug_artifacts(changed_paths, payload)
-    is_docs_only = not (buckets['code'] or buckets['config'] or buckets['other']) and bool(buckets['docs'])
+    if not has_code and not has_config:
+        return 0
 
-    contract_changed = any(is_contract_path(p) for p in changed_paths)
+    # Debug artifact scan — verifiable by reading actual files, so safe to BLOCK
+    git_root = _get_git_root()
+    debug_artifacts = scan_debug_artifacts(changed_paths, {'cwd': git_root})
 
+    if debug_artifacts:
+        out = {
+            "systemMessage": (
+                "BLOCK: debug artifacts found in changed files. "
+                "Remove all debug statements and markers before completing. See debugArtifacts for details."
+            ),
+            "debugArtifacts": debug_artifacts[:10],
+        }
+        print(json.dumps(out), file=sys.stderr)
+        return 2
+
+    # Advisory reminder — Stop hook cannot verify test/lint execution history
     if has_code:
-        # require quality evidence for code/config changes
-        has_quality = evidence['has_tests'] and (evidence['has_lint'] or evidence['has_typecheck'])
-        quality_passed = evidence['evidence']['result'] in {'passed', 'unknown'} if has_quality else False
+        reminders = ["테스트 실행", "lint/typecheck 확인"]
+        if any(is_contract_path(p) for p in changed_paths):
+            reminders.append("API contract/schema 검증")
 
-        # contract/config related code paths additionally require contract-check evidence
-        has_contract_quality = True
-        if contract_changed:
-            has_contract_quality = evidence['has_contract_check']
-
-        if not has_quality or not quality_passed or not has_contract_quality or bool(debug_artifacts):
-            missing = []
-            if not evidence['has_tests']:
-                missing.append('tests')
-            if not (evidence['has_lint'] or evidence['has_typecheck']):
-                missing.append('lint_or_typecheck')
-            if contract_changed and not evidence['has_contract_check']:
-                missing.append('contract_check')
-            if debug_artifacts:
-                missing.append('debug_artifacts')
-            if evidence['evidence']['result'] == 'failed':
-                missing.append('verification_result indicates failure')
-
-            out = {
-                "systemMessage": (
-                    "BLOCK completion: completion evidence missing or failed for code/config changes. "
-                    "Required: at least one test command and one lint/typecheck evidence command. "
-                    f"Missing: {', '.join(missing) or 'unknown evidence quality'}."
-                ),
-                "requiredEvidence": {
-                    "tests": True,
-                    "lintOrTypecheck": True,
-                    "docAndContractCheck": contract_changed,
-                    "debugArtifacts": True,
-                },
-                "evidence": {
-                    "tests": evidence['has_tests'],
-                    "lint": evidence['has_lint'],
-                    "typecheck": evidence['has_typecheck'],
-                    "contractCheck": evidence['has_contract_check'],
-                    "result": evidence['evidence']['result'],
-                    "debugArtifacts": debug_artifacts[:10],
-                    "matched": evidence['evidence'],
-                },
-            }
-            print(json.dumps(out), file=sys.stderr)
-            return 2
-
-        return 0
-
-    if has_docs_only:
-        if is_complete and not has_docs_review_signal(payload):
-            out = {
-                "systemMessage": (
-                    "Docs-only completion request detected. No explicit docs verification note found in payload; "
-                    "please append a short docs review confirmation before final handoff."
-                )
-            }
-            print(json.dumps(out), file=sys.stderr)
-        return 0
-
-    if has_config and not is_docs_only:
-        if contract_changed and not evidence['has_contract_check']:
-            out = {
-                "systemMessage": (
-                    "CONFIG/SCHEMA-related paths changed. Capture a contract/check command output in session context "
-                    "(e.g., docs update check, schema validation, API lint) before handoff."
-                )
-            }
-            print(json.dumps(out), file=sys.stderr)
+        out = {
+            "systemMessage": (
+                "Completion reminder: code changes detected in "
+                f"{len(buckets['code'])} file(s). Verify: {', '.join(reminders)}."
+            ),
+        }
+        print(json.dumps(out))
 
     return 0
 

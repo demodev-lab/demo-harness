@@ -2,6 +2,14 @@
 
 모든 주요 변경 사항을 이 파일에 기록한다.
 
+## [1.0.2] - 2026-03-30
+
+### Fixed
+- **completion-gate Stop hook 오탐 수정**: payload 텍스트 파싱 대신 `git diff` 기반 변경 파일 감지로 전환
+  - Stop hook payload에 변경 파일 정보가 없어 항상 BLOCK되던 문제 해결
+  - test/lint 증거 확인 불가 시 BLOCK(exit 2) → advisory 메시지(exit 0)로 변경
+  - debug artifact 스캔에서 `re.compile` 정의 줄, 주석 줄 false positive 방지 추가
+
 ## [1.0.1] - 2026-03-30
 
 ### Added
