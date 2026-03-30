@@ -2,6 +2,13 @@
 
 모든 주요 변경 사항을 이 파일에 기록한다.
 
+## [1.0.3] - 2026-03-30
+
+### Changed
+- **failure-absorb 자동 실행**: 테스트 실패/에러 감지 시 제안 → 자동 실행으로 변경
+- **에러 패턴 확장**: Java (`NullPointerException`, `BUILD FAILURE`, `mvn/gradle`), TypeScript (`TS2304`, `jest/vitest`, `ERR_MODULE_NOT_FOUND`), Dart/Flutter (`FormatException`, `flutter test fail`, `pub get failed`) 패턴 추가
+- **IGNORE 패턴 보강**: `BUILD SUCCESSFUL`, `no issues found`, `passed, 0 failed` 추가
+
 ## [1.0.2] - 2026-03-30
 
 ### Fixed
