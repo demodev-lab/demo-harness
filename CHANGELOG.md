@@ -2,6 +2,39 @@
 
 모든 주요 변경 사항을 이 파일에 기록한다.
 
+## [2.0.0] - 2026-03-31
+
+Advisory 시스템에서 closed-loop 운영 체제로 전환.
+
+### Added
+- **공유 인프라**: `hooks/scripts/lib/config_loader.py` — 프로젝트별 `.harness.json` 설정 로더 (모든 임계값 오버라이드 가능)
+- **공유 인프라**: `hooks/scripts/lib/state_manager.py` — `docs/.harness-state.json` 영속 상태 관리 (session buffer/flush 패턴)
+- **harness-import 스킬**: 기존 프로젝트에 하네스 거버넌스 도입 (brownfield 지원)
+- **harness-status 스킬**: `docs/.harness-state.json` 기반 CLI 대시보드 — 흡수율, 실패 분포, 프로모션 백로그, 건강도 트렌드
+- **2-tier 자동 분류**: 실패 감지 시 Cat 2(환경)/Cat 3(테스트)/Cat 5(타임아웃) 자동 분류, 나머지 Cat 0(unclassified)
+- **failure-log 자동 기록**: 5컬럼 형식 (`Date | Description | Cause Category | Absorption Action | Verification Status`)으로 자동 기록
+- **failure-absorb Phase 5 — Verify**: 흡수 완료 후 자동 검증 단계 추가
+- **프로모션 큐**: session-doc-cleanup이 `docs/.harness-state.json`에 프로모션 후보 자동 큐잉
+- **selftest 7/7 커버리지**: suggest-failure-absorb, suggest-rule-promote, suggest-harness-audit, session-doc-cleanup 테스트 추가
+- **false-positive 테스트 코퍼스**: 10개 정상 + 10개 실패 빌드 출력 (20/20 통과)
+- **설정 템플릿**: `.harness.json` 스키마 문서화 (`harness-config-template.json`)
+
+### Changed
+- **suggest-failure-absorb**: "Do NOT run /failure-absorb" → 실제로 `/failure-absorb` 실행 제안으로 변경
+- **suggest-failure-absorb**: 5분 쿨다운 추가 (동일 에러 시그니처 기준 dedup)
+- **suggest-rule-promote**: `/tmp` 트래커 → `docs/.harness-state.json` 영속 상태로 이전
+- **suggest-harness-audit**: `/tmp` 트래커 → `docs/.harness-state.json` 영속 상태로 이전
+- **session-doc-cleanup**: 듀얼 파서 — 기존 structured entry + 신규 5컬럼 테이블 모두 파싱
+- **session-doc-cleanup**: Stop hook에서 session buffer flush 수행
+- **completion-gate**: Stop hook payload 파싱 시도 + `.harness-state.json` 변경 감지 제외
+- **weekly-review**: `git log --format=%ai -1` 기반 정확한 staleness 감지
+- **hooks-template**: 3개 → 7개 훅 전체 등록, `${CLAUDE_PLUGIN_ROOT}` → `.claude/scripts/` (자급자족)
+- **모든 훅 스크립트**: `lib/` import에 `try/except ImportError` fallback 패턴 적용
+
+### Fixed
+- **marketplace.json 버전 불일치**: plugin.json과 동기화 (1.0.1 → 2.0.0)
+- **failure-log 스키마 불일치**: 3개 컴포넌트가 다른 포맷 사용 → 5컬럼 통일
+
 ## [1.0.5] - 2026-03-31
 
 ### Fixed
