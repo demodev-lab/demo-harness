@@ -2,6 +2,22 @@
 
 모든 주요 변경 사항을 이 파일에 기록한다.
 
+## [1.0.4] - 2026-03-31
+
+### Added
+- **session-doc-cleanup Stop hook**: 세션 종료 시 failure-log.md 반복 패턴 자동 감지 + 승격 후보 마킹
+- **completion-gate 멀티 언어 패턴**: Dart/Flutter (`flutter test`, `dart analyze`), Java (`./gradlew test`, `mvn compile`, `javac`), TypeScript (`vitest`, `bun test`, `biome`, `vue-tsc`) 총 20개 패턴 추가
+- **suggest-failure-absorb 패턴 확장**: `yarn ERR!`, `pnpm ERR!`, `Cannot find module`, `ClassNotFoundException`, `Unhandled Exception` 등 14개 추가
+- **block-destructive 차단 추가**: `rimraf`, `docker system prune`, `git stash drop/clear`
+- **check-docs-change 프레임워크 감지**: Spring Boot (`application.yml`), Next.js (`next.config.*`), Flutter (`pubspec.yaml`), Django (`urls.py`, `models.py`)
+- **harness-init 언어 지원**: Dart/Flutter, Java/Kotlin (Gradle/Maven) 검증 명령어 추가
+
+### Fixed
+- **suggest-rule-promote**: `tool_result`/`tool_response` 폴백 추가 (hook이 죽어있던 문제), threshold 2→3 (TDD 오탐 방지)
+- **suggest-harness-audit/rule-promote**: `/tmp` 상태 파일 프로젝트별 분리 (cross-project 오염 방지)
+- **check-docs-change**: 경로 추출 로직 강화 (`.`/`/` 단일 문자 체크 → 파일 패턴 매칭)
+- **suggest-failure-absorb**: Maven `BUILD SUCCESS` 오탐 수정 (`BUILD SUCCESSFUL`만 매칭하던 문제)
+
 ## [1.0.3] - 2026-03-30
 
 ### Changed
