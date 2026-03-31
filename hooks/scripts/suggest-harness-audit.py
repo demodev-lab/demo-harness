@@ -46,6 +46,8 @@ def main():
         f for f in log["files"]
         if now - f.get("time", 0) < SESSION_WINDOW
     ]
+    if not log["files"]:
+        log["last_suggest"] = 0
 
     if not any(f.get("path") == file_path for f in log["files"]):
         log["files"].append({"path": file_path, "time": now})

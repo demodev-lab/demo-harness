@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Stop hook: scan failure-log.md for repeated patterns and mark promotion candidates."""
-import json
 import os
 import re
 import sys

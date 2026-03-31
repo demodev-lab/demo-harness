@@ -6,8 +6,11 @@ import re
 
 FAILURE_PATTERNS = [
     # Common
-    r'FAIL[ED]?\b',
+    r'\bFAIL(ED)?\b',
     r'\bERROR\b',
+    r'Test\s+failed',
+    r'Tests?\s+\d+\s+failed',
+    r'FAILED\s+test',
     r'failures?:\s*[1-9]',
     r'errors?:\s*[1-9]',
     r'Exception\b',
@@ -95,18 +98,20 @@ def main():
     if not output or len(output) < 10:
         sys.exit(0)
 
-    for pat in IGNORE_PATTERNS:
-        if re.search(pat, output, re.IGNORECASE):
-            sys.exit(0)
-
     for pat in FAILURE_PATTERNS:
         if re.search(pat, output, re.IGNORECASE):
             # Extract first matching line for context
             match_line = ""
             for line in output.splitlines():
                 if re.search(pat, line, re.IGNORECASE):
+                    # Check if this specific line also matches an ignore pattern
+                    if any(re.search(ip, line, re.IGNORECASE) for ip in IGNORE_PATTERNS):
+                        continue
                     match_line = line.strip()[:120]
                     break
+
+            if not match_line:
+                continue
 
             msg = {
                 "systemMessage": (

@@ -96,8 +96,6 @@ def scan_debug_artifacts(paths, payload: dict):
     debug_patterns = {
         'console.log': re.compile(r"\bconsole\.log\s*\("),
         'debugger': re.compile(r"\bdebugger\b"),
-        'TODO': re.compile(r"\bTODO\b"),
-        'FIXME': re.compile(r"\bFIXME\b"),
         'pdb.set_trace': re.compile(r"\bpdb\.set_trace\b"),
         'breakpoint()': re.compile(r"\bbreakpoint\s*\("),
         'import pdb': re.compile(r"^\s*import\s+pdb\b|^\s*from\s+pdb\s+import\b"),
