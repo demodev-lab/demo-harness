@@ -498,14 +498,10 @@ def main():
     debug_artifacts = scan_debug_artifacts(changed_paths, {'cwd': git_root})
 
     if debug_artifacts:
-        out = {
-            "systemMessage": (
-                "BLOCK: debug artifacts found in changed files. "
-                "Remove all debug statements and markers before completing. See debugArtifacts for details."
-            ),
-            "debugArtifacts": debug_artifacts[:10],
-        }
-        print(json.dumps(out), file=sys.stderr)
+        lines = ["BLOCK: debug artifacts found in changed files."]
+        for a in debug_artifacts[:10]:
+            lines.append(f"  {a['file']}:{a['line']} — {a['pattern']}")
+        print("\n".join(lines), file=sys.stderr)
         return 2
 
     return 0

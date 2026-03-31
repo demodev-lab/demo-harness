@@ -178,13 +178,7 @@ def main():
         )
 
     if warnings:
-        msg = {
-            "systemMessage": (
-                "[Harness Cleanup] Session-end document scan complete. "
-                + "; ".join(warnings)
-            ),
-        }
-        sys.stderr.write(json.dumps(msg))
+        print("[Harness Cleanup] " + "; ".join(warnings), file=sys.stderr)
 
     return 0
 
