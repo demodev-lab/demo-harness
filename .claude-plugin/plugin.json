@@ -1,6 +1,6 @@
 {
   "name": "harness-engineering",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Harness Engineering Manual plugin - scaffolds operating systems for Claude Code projects with failure absorption loops, completion gates, and automated quality enforcement",
   "author": {
     "name": "wongil"

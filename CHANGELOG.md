@@ -2,6 +2,16 @@
 
 모든 주요 변경 사항을 이 파일에 기록한다.
 
+## [1.0.5] - 2026-03-31
+
+### Fixed
+- **FAIL 패턴 버그**: `FAIL[ED]?\b` → `\bFAIL(ED)?\b` — "FAILED" 키워드를 매칭하지 못하던 버그 수정
+- **IGNORE 순서 버그**: 전체 출력 기반 → 라인 단위 IGNORE 체크로 변경 — "Successfully...failures" 혼합 출력에서 실패를 놓치던 문제 해결
+- **TODO/FIXME 과차단**: debug artifact에서 제거 — 정상적인 코드 마커가 세션 종료를 차단하던 문제 해결
+- **Stop hook JSON validation**: stderr JSON 출력 → plain text 변경 — "JSON validation failed" 에러 해결
+- **Stop prompt hook 제거**: "No assistant message found" 에러 해결
+- **suggest-harness-audit**: 30분 비활성 후 `last_suggest` 리셋 추가
+
 ## [1.0.4] - 2026-03-31
 
 ### Added
