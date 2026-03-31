@@ -7,9 +7,12 @@ import os
 import re
 import time
 
-ERROR_LOG = "/tmp/.harness-error-tracker.json"
-REPEAT_THRESHOLD = 2
+REPEAT_THRESHOLD = 3
 EXPIRY_SECONDS = 3600  # 1 hour window
+
+def _get_tracker_path():
+    cwd_hash = hashlib.md5(os.getcwd().encode()).hexdigest()[:8]
+    return f"/tmp/.harness-error-tracker-{cwd_hash}.json"
 
 ERROR_SIGNATURES = [
     r'(FAIL\w*:?\s+.{10,60})',
@@ -24,14 +27,14 @@ ERROR_SIGNATURES = [
 
 def load_log():
     try:
-        with open(ERROR_LOG, "r") as f:
+        with open(_get_tracker_path(), "r") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 def save_log(log):
     try:
-        with open(ERROR_LOG, "w") as f:
+        with open(_get_tracker_path(), "w") as f:
             json.dump(log, f)
     except OSError:
         pass
@@ -55,7 +58,7 @@ def main():
     except (json.JSONDecodeError, EOFError):
         sys.exit(0)
 
-    output = data.get("tool_result", "") or ""
+    output = data.get("tool_result", "") or data.get("tool_response", "") or ""
     if isinstance(output, dict):
         output = json.dumps(output)
 

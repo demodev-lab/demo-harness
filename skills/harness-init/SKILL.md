@@ -70,10 +70,13 @@ Populate each template with project-specific values gathered in the pre-flight s
 
 **Verification commands:**
 - Populate with real, runnable commands for the detected stack. Never leave placeholders.
-- Node.js: `npm run lint`, `tsc --noEmit`, `npm test`
-- Python: `ruff check .`, `mypy .`, `pytest`
-- Go: `golangci-lint run`, `go vet ./...`, `go test ./...`
-- Ruby: `rubocop`, `steep check`, `bundle exec rspec`
+- Node.js (`package.json`): `npm run lint`, `tsc --noEmit`, `npm test`
+- Python (`pyproject.toml` / `requirements.txt`): `ruff check .`, `mypy .`, `pytest`
+- Go (`go.mod`): `golangci-lint run`, `go vet ./...`, `go test ./...`
+- Ruby (`Gemfile`): `rubocop`, `steep check`, `bundle exec rspec`
+- Dart/Flutter (`pubspec.yaml`): `dart analyze`, `dart analyze`, `flutter test` or `dart test`; format check: `dart format --output=none .`
+- Java/Kotlin — Gradle (`build.gradle` / `build.gradle.kts`): `./gradlew checkstyleMain` or `ktlint`, `./gradlew compileJava`, `./gradlew test`
+- Java/Kotlin — Maven (`pom.xml`): `mvn checkstyle:check`, `mvn compile`, `mvn test`
 - Unknown stack: use echo commands and flag for configuration.
 
 **Glossary rules:**

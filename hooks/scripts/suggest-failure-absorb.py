@@ -27,6 +27,23 @@ FAILURE_PATTERNS = [
     r'at\s+[\w.]+\([\w.]+:\d+\)',
     r'Tests?\s+run:.*Failures:\s*[1-9]',
     r'CompilationFailureException',
+    # TypeScript additional
+    r'yarn\s+ERR!',
+    r'pnpm\s+ERR!',
+    r'Cannot\s+find\s+module',
+    r'Module\s+not\s+found',
+    # Java additional
+    r'ClassNotFoundException',
+    r'NoSuchMethodError',
+    r'Caused\s+by:',
+    r'COMPILATION\s+ERROR',
+    r'>\s+Task\s+:.*FAILED',
+    # Dart additional
+    r'Unhandled\s+Exception:',
+    r'Package.*not\s+found',
+    # Python additional
+    r'ModuleNotFoundError',
+    r'ImportError',
     # TypeScript / JavaScript
     r'npm\s+ERR!',
     r'TypeError\b',
@@ -59,8 +76,10 @@ IGNORE_PATTERNS = [
     r'All\s+tests?\s+passed',
     r'no\s+issues\s+found',
     r'No\s+errors\s+found',
-    r'BUILD\s+SUCCESSFUL',
+    r'BUILD\s+SUCCE',
     r'passed,\s+0\s+failed',
+    r'dart\s+analyze.*no\s+issues',
+    r'flutter\s+test.*All\s+tests\s+passed',
 ]
 
 def main():

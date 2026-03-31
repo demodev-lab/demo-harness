@@ -115,6 +115,10 @@ def match_pattern(command: str):
         (r"\bdd\b[^\n]*\bif=/dev/(sd|hd|nvme|vd)", "dd if=/dev/*"),
         (r"\b>\s*/dev/(sd|hd|nvme|vd)", "dd-like redirect to /dev/*"),
         (r"\b:\s*\(\)\s*\{", "fork bomb"),
+        (r"\brimraf\b", "rimraf"),
+        (r"\bdocker\s+system\s+prune\b", "docker system prune"),
+        (r"\bgit\s+stash\s+drop\b", "git stash drop"),
+        (r"\bgit\s+stash\s+clear\b", "git stash clear"),
     ]
 
     if _has_rm_recursive_root(command):

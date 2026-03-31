@@ -254,6 +254,14 @@ def has_verification_evidence(strings, context_payload=None):
         r"\bmake\s+(?:test|unit|integration)\b",
         r"\b\w*\b\s+\-m\s+pytest\b",
         r"\btox\b",
+        r'\bflutter\s+test\b',
+        r'\bdart\s+test\b',
+        r'\bflutter\s+drive\b',
+        r'\b\.\/gradlew\s+test\b',
+        r'\b\.\/mvnw\s+test\b',
+        r'\bmvn\s+verify\b',
+        r'\bvitest\b',
+        r'\bbun\s+test\b',
     ]
 
     lint_patterns = [
@@ -269,6 +277,12 @@ def has_verification_evidence(strings, context_payload=None):
         r"\bgolangci\b",
         r"\bcheckstyle\b",
         r"\bshellcheck\b",
+        r'\bdart\s+analyze\b',
+        r'\bflutter\s+analyze\b',
+        r'\bbiome\s+check\b',
+        r'\bbiome\s+lint\b',
+        r'\bktlint\b',
+        r'\bdart\s+format\b',
     ]
 
     type_patterns = [
@@ -277,6 +291,12 @@ def has_verification_evidence(strings, context_payload=None):
         r"\btsc\b(?:(?:\s+--noemit|\s+--noEmit))?",
         r"\bgo\s+vet\b",
         r"\bdeno\s+check\b",
+        r'\bflutter\s+analyze\b',
+        r'\bdart\s+analyze\b',
+        r'\bjavac\b',
+        r'\b\.\/gradlew\s+compileJava\b',
+        r'\bmvn\s+compile\b',
+        r'\bvue-tsc\b',
     ]
 
     contract_patterns = [

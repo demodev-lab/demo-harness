@@ -2,24 +2,27 @@
 """PostToolUse(Edit|Write) hook: detect large changes and suggest /harness-audit."""
 import sys
 import json
+import hashlib
 import os
 import time
 
-CHANGE_LOG = "/tmp/.harness-change-tracker.json"
+def _get_tracker_path():
+    cwd_hash = hashlib.md5(os.getcwd().encode()).hexdigest()[:8]
+    return f"/tmp/.harness-change-tracker-{cwd_hash}.json"
 FILE_THRESHOLD = 10
 SESSION_WINDOW = 1800  # 30 min session window
 COOLDOWN = 300  # only suggest once per 5 minutes
 
 def load_log():
     try:
-        with open(CHANGE_LOG, "r") as f:
+        with open(_get_tracker_path(), "r") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {"files": [], "last_suggest": 0}
 
 def save_log(log):
     try:
-        with open(CHANGE_LOG, "w") as f:
+        with open(_get_tracker_path(), "w") as f:
             json.dump(log, f)
     except OSError:
         pass

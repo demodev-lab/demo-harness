@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import re
 import sys
 
 
@@ -70,7 +71,7 @@ def _collect_paths(tool_input: dict) -> list:
             for k, v in tool_input.items():
                 if not isinstance(v, str) or not v.strip():
                     continue
-                if any(ch in v for ch in ['/', '.', '.py', '.json', '.yml', '.yaml']):
+                if re.match(r'^[\w./-]+\.\w{1,10}$', v.strip()) or v.strip().startswith('/'):
                     if v not in seen and '\t' not in v:
                         seen.add(v)
                         out.append(v)
@@ -105,6 +106,27 @@ def _is_api_contract_path(path: str) -> bool:
         return True
 
     if any(lower_path.endswith(ext) for ext in api_extensions):
+        return True
+
+    # Spring Boot
+    basename_full = lower_path.rsplit('/', 1)[-1]
+    if basename_full in ('application.yml', 'application.properties'):
+        return True
+    if 'src/main/resources/' in lower_path:
+        return True
+
+    # Next.js
+    if re.match(r'next\.config\.\w+$', basename_full):
+        return True
+    if 'pages/api/' in lower_path or 'app/api/' in lower_path:
+        return True
+
+    # Flutter
+    if basename_full == 'pubspec.yaml':
+        return True
+
+    # Django
+    if basename_full in ('urls.py', 'models.py', 'serializers.py'):
         return True
 
     return False
