@@ -1,0 +1,11 @@
+...F..
+
+Failures:
+
+  1) Auth#login returns false for invalid credentials
+     Failure/Error: expect(auth.login("user", "bad")).to be false
+       expected false
+            got true
+
+Finished in 0.5 seconds
+3 examples, 1 failure

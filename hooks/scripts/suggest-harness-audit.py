@@ -2,30 +2,26 @@
 """PostToolUse(Edit|Write) hook: detect large changes and suggest /harness-audit."""
 import sys
 import json
-import hashlib
 import os
 import time
 
-def _get_tracker_path():
-    cwd_hash = hashlib.md5(os.getcwd().encode()).hexdigest()[:8]
-    return f"/tmp/.harness-change-tracker-{cwd_hash}.json"
-FILE_THRESHOLD = 10
-SESSION_WINDOW = 1800  # 30 min session window
-COOLDOWN = 300  # only suggest once per 5 minutes
+try:
+    from lib.config_loader import load_config, get_project_root
+except ImportError:
+    def load_config(_):
+        return {"file_change_threshold": 10, "session_window_seconds": 1800,
+                "suggestion_cooldown_seconds": 300}
+    def get_project_root():
+        return os.getcwd()
 
-def load_log():
-    try:
-        with open(_get_tracker_path(), "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {"files": [], "last_suggest": 0}
-
-def save_log(log):
-    try:
-        with open(_get_tracker_path(), "w") as f:
-            json.dump(log, f)
-    except OSError:
+try:
+    from lib.state_manager import load_state, buffer_state
+except ImportError:
+    def load_state(_):
+        return {"file_change_tracker": {"files": [], "last_suggest": 0}}
+    def buffer_state(_):
         pass
+
 
 def main():
     try:
@@ -39,25 +35,35 @@ def main():
     if not file_path:
         sys.exit(0)
 
+    root = get_project_root()
+    config = load_config(root)
+    state = load_state(root)
+
     now = time.time()
-    log = load_log()
+    tracker = dict(state.get("file_change_tracker", {"files": [], "last_suggest": 0}))
+    session_window = config["session_window_seconds"]
+    cooldown = config["suggestion_cooldown_seconds"]
+    threshold = config["file_change_threshold"]
 
-    log["files"] = [
-        f for f in log["files"]
-        if now - f.get("time", 0) < SESSION_WINDOW
-    ]
-    if not log["files"]:
-        log["last_suggest"] = 0
+    # Clean expired file entries
+    files = [f for f in tracker.get("files", []) if now - f.get("time", 0) < session_window]
+    if not files:
+        tracker["last_suggest"] = 0
 
-    if not any(f.get("path") == file_path for f in log["files"]):
-        log["files"].append({"path": file_path, "time": now})
+    # Add new file if not already tracked
+    if not any(f.get("path") == file_path for f in files):
+        files.append({"path": file_path, "time": now})
 
-    unique_count = len(log["files"])
-    save_log(log)
+    tracker["files"] = files
+    unique_count = len(files)
 
-    if unique_count >= FILE_THRESHOLD and (now - log.get("last_suggest", 0)) > COOLDOWN:
-        log["last_suggest"] = now
-        save_log(log)
+    # Buffer state change
+    buffer_state({"file_change_tracker": tracker})
+
+    if unique_count >= threshold and (now - tracker.get("last_suggest", 0)) > cooldown:
+        tracker["last_suggest"] = now
+        buffer_state({"file_change_tracker": tracker})
+
         msg = {
             "systemMessage": (
                 f"[Harness] {unique_count} files modified in this session. "

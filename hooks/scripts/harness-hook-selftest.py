@@ -290,6 +290,63 @@ def main():
         None,
     )
 
+    # suggest-failure-absorb.py
+    ok &= assert_case(
+        "suggest-failure-absorb-detects-failure",
+        'suggest-failure-absorb.py',
+        {"tool_result": "FAILED test_login - AssertionError: expected True"},
+        0,
+        ["failure-absorb", "Harness"],
+    )
+    ok &= assert_case(
+        "suggest-failure-absorb-ignores-passing",
+        'suggest-failure-absorb.py',
+        {"tool_result": "5 passed, 0 failed in 0.15s"},
+        0,
+        None,
+    )
+
+    # suggest-rule-promote.py
+    ok &= assert_case(
+        "suggest-rule-promote-first-occurrence-silent",
+        'suggest-rule-promote.py',
+        {"tool_result": "Error: something went wrong in the module"},
+        0,
+        None,
+    )
+    ok &= assert_case(
+        "suggest-rule-promote-empty-output-silent",
+        'suggest-rule-promote.py',
+        {"tool_result": ""},
+        0,
+        None,
+    )
+
+    # suggest-harness-audit.py
+    ok &= assert_case(
+        "suggest-harness-audit-with-file-path",
+        'suggest-harness-audit.py',
+        {"tool_input": {"file_path": "src/main.py"}},
+        0,
+        None,
+    )
+    ok &= assert_case(
+        "suggest-harness-audit-no-file-path-silent",
+        'suggest-harness-audit.py',
+        {"tool_input": {}},
+        0,
+        None,
+    )
+
+    # session-doc-cleanup.py
+    ok &= assert_case(
+        "session-doc-cleanup-empty-stdin-graceful",
+        'session-doc-cleanup.py',
+        {},
+        0,
+        None,
+    )
+
     if ok:
         print('[PASS] all harness hook selftests succeeded')
         bad_debug_file.unlink(missing_ok=True)

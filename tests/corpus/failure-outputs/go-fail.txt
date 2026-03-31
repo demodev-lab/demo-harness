@@ -1,0 +1,4 @@
+--- FAIL: TestLogin (0.00s)
+    auth_test.go:42: expected true, got false
+FAIL
+FAIL	github.com/test/pkg	0.012s

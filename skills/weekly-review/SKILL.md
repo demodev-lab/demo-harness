@@ -37,7 +37,10 @@ Load the following files before doing any analysis. Do not proceed without readi
 - All files under `skills/` — current contextual execution documents; check for staleness and overlap
 - `docs/glossary/README.md` — terminology registry; check for undefined terms that appeared in recent failures
 
-Note the last-modified date of each file. Any file not touched in 8+ weeks is a staleness candidate for the cleanup phase.
+각 하네스 파일의 마지막 수정일을 git으로 확인한다:
+`git log --format=%ai -1 -- <file>`
+
+`.harness.json`의 `staleness_weeks` 값(기본값: 8주)보다 오래된 파일은 staleness 후보로 표시한다.
 
 Record the current line count of `AGENTS.md`. If it exceeds 60 lines, that is a finding in itself — flag it as a high-priority cleanup item before any other analysis.
 

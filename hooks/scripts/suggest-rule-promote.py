@@ -7,12 +7,21 @@ import os
 import re
 import time
 
-REPEAT_THRESHOLD = 3
-EXPIRY_SECONDS = 3600  # 1 hour window
+try:
+    from lib.config_loader import load_config, get_project_root
+except ImportError:
+    def load_config(_):
+        return {"repeat_threshold": 3, "error_expiry_days": 7}
+    def get_project_root():
+        return os.getcwd()
 
-def _get_tracker_path():
-    cwd_hash = hashlib.md5(os.getcwd().encode()).hexdigest()[:8]
-    return f"/tmp/.harness-error-tracker-{cwd_hash}.json"
+try:
+    from lib.state_manager import load_state, buffer_state
+except ImportError:
+    def load_state(_):
+        return {"error_tracker": {}}
+    def buffer_state(_):
+        pass
 
 ERROR_SIGNATURES = [
     r'(FAIL\w*:?\s+.{10,60})',
@@ -25,23 +34,6 @@ ERROR_SIGNATURES = [
     r'(ImportError:\s+.{10,60})',
 ]
 
-def load_log():
-    try:
-        with open(_get_tracker_path(), "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-def save_log(log):
-    try:
-        with open(_get_tracker_path(), "w") as f:
-            json.dump(log, f)
-    except OSError:
-        pass
-
-def clean_expired(log):
-    now = time.time()
-    return {k: v for k, v in log.items() if now - v.get("last", 0) < EXPIRY_SECONDS}
 
 def extract_error_signature(output):
     for pat in ERROR_SIGNATURES:
@@ -51,6 +43,7 @@ def extract_error_signature(output):
             sig = re.sub(r'/\S+/', '/PATH/', sig)
             return sig
     return None
+
 
 def main():
     try:
@@ -69,16 +62,30 @@ def main():
     if not sig:
         sys.exit(0)
 
+    root = get_project_root()
+    config = load_config(root)
+    state = load_state(root)
+
+    repeat_threshold = config["repeat_threshold"]
+    expiry_seconds = config["error_expiry_days"] * 86400
+
     sig_hash = hashlib.md5(sig.encode()).hexdigest()[:12]
+    tracker = dict(state.get("error_tracker", {}))
 
-    log = clean_expired(load_log())
-    entry = log.get(sig_hash, {"count": 0, "sig": sig, "last": 0})
+    # Clean expired entries
+    now = time.time()
+    tracker = {k: v for k, v in tracker.items() if now - v.get("last", 0) < expiry_seconds}
+
+    entry = tracker.get(sig_hash, {"count": 0, "sig": sig, "last": 0})
+    entry = dict(entry)
     entry["count"] += 1
-    entry["last"] = time.time()
-    log[sig_hash] = entry
-    save_log(log)
+    entry["last"] = now
+    tracker[sig_hash] = entry
 
-    if entry["count"] >= REPEAT_THRESHOLD:
+    # Buffer state change (flushed at session end by Stop hook)
+    buffer_state({"error_tracker": tracker})
+
+    if entry["count"] >= repeat_threshold:
         msg = {
             "systemMessage": (
                 f"[Harness] Same error detected {entry['count']} times: \"{sig[:80]}\". "

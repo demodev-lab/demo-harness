@@ -1,0 +1,12 @@
+   Compiling my-crate v0.1.0 (/workspace)
+    Finished test [unoptimized + debuginfo] target(s) in 1.23s
+     Running unittests src/lib.rs
+
+running 5 tests
+test tests::test_add ... ok
+test tests::test_sub ... ok
+test tests::test_mul ... ok
+test tests::test_div ... ok
+test tests::test_mod ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured

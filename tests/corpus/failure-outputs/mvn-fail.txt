@@ -1,0 +1,7 @@
+[INFO] Scanning for projects...
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:2.22.2:test (default-test) on project myapp: There are test failures.
+[ERROR]
+[ERROR] Please refer to /workspace/target/surefire-reports for the individual test results.
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------

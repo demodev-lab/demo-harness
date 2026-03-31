@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+collected 3 items
+
+tests/test_auth.py::test_login FAILED
+tests/test_auth.py::test_logout PASSED
+tests/test_auth.py::test_signup PASSED
+
+=================================== FAILURES ===================================
+__________________________ test_login __________________________
+
+    def test_login():
+>       assert login("user", "wrong") is True
+E       AssertionError: assert False is True
+
+FAILED test_auth.py::test_login - AssertionError
+============================== 1 failed, 2 passed in 0.23s ==============================

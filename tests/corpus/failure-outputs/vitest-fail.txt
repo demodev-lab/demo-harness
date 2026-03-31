@@ -1,0 +1,7 @@
+ FAIL src/test.ts > should work
+AssertionError: expected false to be true
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  00:00:00
+   Duration  234ms

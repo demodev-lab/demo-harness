@@ -1,0 +1,10 @@
+PASS src/auth.test.js
+  Auth module
+    ✓ should login successfully (12ms)
+    ✓ should reject invalid credentials (5ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       10 passed, 10 total
+Snapshots:   0 total
+Time:        1.234s
+Ran all test suites.

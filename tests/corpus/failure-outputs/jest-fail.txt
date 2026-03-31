@@ -1,0 +1,14 @@
+FAIL src/auth.test.js
+  Auth module
+    ✓ should login successfully (12ms)
+    ✗ should reject invalid credentials (5ms)
+
+  ● Auth module › should reject invalid credentials
+
+    expect(received).toBe(expected)
+    Expected: false
+    Received: true
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 10 total
+Time:        1.234s

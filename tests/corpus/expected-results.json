@@ -1,0 +1,26 @@
+{
+  "normal-outputs": {
+    "npm-pass.txt": false,
+    "pytest-pass.txt": false,
+    "gradle-pass.txt": false,
+    "jest-pass.txt": false,
+    "go-pass.txt": false,
+    "flutter-pass.txt": false,
+    "rspec-pass.txt": false,
+    "cargo-pass.txt": false,
+    "mvn-pass.txt": false,
+    "vitest-pass.txt": false
+  },
+  "failure-outputs": {
+    "npm-fail.txt": true,
+    "pytest-fail.txt": true,
+    "gradle-fail.txt": true,
+    "jest-fail.txt": true,
+    "go-fail.txt": true,
+    "flutter-fail.txt": true,
+    "rspec-fail.txt": true,
+    "cargo-fail.txt": true,
+    "mvn-fail.txt": true,
+    "vitest-fail.txt": true
+  }
+}

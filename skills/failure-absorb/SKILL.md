@@ -129,6 +129,21 @@ Execute the absorption action determined in Phase 3. Each layer has a specific e
 - Architecture notes: add a decision record if the failure revealed an unstated architectural assumption or constraint
 - Postmortem: if the failure had significant impact, complete a full postmortem using `docs/postmortem-template.md`
 
+### Phase 5 — Verify (검증)
+
+흡수 완료 후 자동 검증을 실행한다:
+
+1. **Hook 흡수**: synthetic event를 생성하여 hook이 올바르게 트리거되는지 확인
+   - 테스트 입력을 stdin으로 파이프하여 hook 스크립트 직접 실행
+   - exit code와 stderr 출력 확인
+2. **Rule 흡수 (AGENTS.md)**: `.harness.json`의 `agents_md_max_lines` 이내인지 줄 수 확인
+3. **Skill 흡수**: SKILL.md frontmatter에 `name`, `description` 필드가 유효한지 확인
+4. **Doc 흡수**: failure-log.md 해당 행의 Verification Status를 `verified`로 업데이트
+
+검증 결과를 `docs/.harness-state.json`에 기록:
+- `absorptions.verified` 카운트 증가
+- `absorptions.history` 해당 항목의 `verified` 필드를 `true`로 변경
+
 ---
 
 ## Output Format

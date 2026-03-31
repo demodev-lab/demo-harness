@@ -1,25 +1,40 @@
 #!/usr/bin/env python3
-"""Stop hook: scan failure-log.md for repeated patterns and mark promotion candidates."""
+"""Stop hook: scan failure-log.md for repeated patterns, update promotion queue, flush state."""
 import os
 import re
 import sys
 from collections import Counter
 from datetime import datetime
 
+try:
+    from lib.config_loader import load_config, get_project_root
+except ImportError:
+    def load_config(_):
+        return {"agents_md_max_lines": 60}
+    def get_project_root():
+        cwd = os.getcwd()
+        d = cwd
+        while d != os.path.dirname(d):
+            if os.path.isdir(os.path.join(d, '.git')):
+                return d
+            d = os.path.dirname(d)
+        return cwd
 
-def _find_project_root():
-    """Find git root or cwd."""
-    cwd = os.getcwd()
-    d = cwd
-    while d != os.path.dirname(d):
-        if os.path.isdir(os.path.join(d, '.git')):
-            return d
-        d = os.path.dirname(d)
-    return cwd
+try:
+    from lib.state_manager import flush_state, add_promotion_candidate, load_state, save_state
+except ImportError:
+    def flush_state(_):
+        return {}
+    def add_promotion_candidate(s, _p, _c, _h):
+        return s
+    def load_state(_):
+        return {}
+    def save_state(_, __):
+        return False
 
 
 def _read_failure_log(path):
-    """Parse failure-log.md table rows. Returns list of dicts."""
+    """Parse failure-log.md — dual parser for table rows AND structured entries."""
     if not os.path.isfile(path):
         return []
 
@@ -30,27 +45,53 @@ def _read_failure_log(path):
     except OSError:
         return []
 
-    for i, line in enumerate(lines):
-        line = line.strip()
-        if not line.startswith('|'):
-            continue
-        cols = [c.strip() for c in line.split('|')[1:-1]]
-        if len(cols) < 2:
-            continue
-        # Skip header and separator rows
-        if cols[0].lower() in ('date', '날짜', '---', ''):
-            continue
-        if all(c.startswith('-') for c in cols):
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+
+        # Parse 5-column (or 4-column) table rows
+        if line.startswith('|'):
+            cols = [c.strip() for c in line.split('|')[1:-1]]
+            if len(cols) >= 2:
+                # Skip header and separator rows
+                if cols[0].lower() not in ('date', '날짜', '---', '') and not all(
+                    c.startswith('-') for c in cols
+                ):
+                    entries.append({
+                        'line_num': i,
+                        'date': cols[0],
+                        'summary': cols[1] if len(cols) > 1 else '',
+                        'category': cols[2] if len(cols) > 2 else '',
+                        'action': cols[3] if len(cols) > 3 else '',
+                        'verification': cols[4] if len(cols) > 4 else '',
+                        'raw': line,
+                    })
+            i += 1
             continue
 
-        entries.append({
-            'line_num': i,
-            'date': cols[0],
-            'summary': cols[1] if len(cols) > 1 else '',
-            'status': cols[2] if len(cols) > 2 else '',
-            'action': cols[3] if len(cols) > 3 else '',
-            'raw': line,
-        })
+        # Parse legacy structured entries (### [date] [title])
+        if line.startswith('### '):
+            entry = {'line_num': i, 'date': '', 'summary': line[4:], 'category': '',
+                     'action': '', 'verification': '', 'raw': line}
+            # Try to extract date from title
+            date_match = re.match(r'###\s+(\d{4}-\d{2}-\d{2})\s+(.*)', line)
+            if date_match:
+                entry['date'] = date_match.group(1)
+                entry['summary'] = date_match.group(2)
+            # Read bullet list following the header
+            j = i + 1
+            while j < len(lines) and lines[j].strip().startswith('- '):
+                bullet = lines[j].strip()[2:]
+                if bullet.lower().startswith('category:'):
+                    entry['category'] = bullet.split(':', 1)[1].strip()
+                elif bullet.lower().startswith('resolution:') or bullet.lower().startswith('action:'):
+                    entry['action'] = bullet.split(':', 1)[1].strip()
+                j += 1
+            entries.append(entry)
+            i = j
+            continue
+
+        i += 1
 
     return entries
 
@@ -147,8 +188,12 @@ def main():
     except Exception:
         pass
 
-    root = _find_project_root()
-    log_path = os.path.join(root, 'docs', 'failure-log.md')
+    root = get_project_root()
+    config = load_config(root)
+    log_path = os.path.join(root, config.get('failure_log_path', 'docs/failure-log.md'))
+
+    # Flush session buffer to persistent state (critical: must happen at Stop)
+    state = flush_state(root)
 
     # Skip if no failure-log exists (harness not initialized)
     if not os.path.isfile(log_path):
@@ -158,21 +203,24 @@ def main():
     repeated = _find_repeated_patterns(entries)
     agents_lines = _check_agents_md(root)
 
-    updated = False
     warnings = []
 
-    # Mark promotion candidates in failure-log.md
+    # Update promotion candidates in state (not directly in failure-log)
     if repeated:
-        updated = _mark_promotion_candidates(log_path, repeated)
         for r in repeated:
-            warnings.append(
-                f"repeated {r['count']}x: {r['pattern'][:60]}"
+            state = add_promotion_candidate(
+                state, r['pattern'], r['count'], 'command'
             )
+            warnings.append(f"repeated {r['count']}x: {r['pattern'][:60]}")
+        # Also mark in failure-log for visibility
+        _mark_promotion_candidates(log_path, repeated)
+        save_state(root, state)
 
     # Check AGENTS.md size
-    if agents_lines and agents_lines > 60:
+    max_lines = config.get('agents_md_max_lines', 60)
+    if agents_lines and agents_lines > max_lines:
         warnings.append(
-            f"AGENTS.md is {agents_lines} lines (limit: 60). "
+            f"AGENTS.md is {agents_lines} lines (limit: {max_lines}). "
             "Consider pruning or moving rules to skills."
         )
 

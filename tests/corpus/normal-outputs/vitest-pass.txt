@@ -1,0 +1,6 @@
+ ✓ src/auth.test.ts (5)
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  00:00:00
+   Duration  312ms

@@ -1,0 +1,6 @@
+00:00 +2 -1: Some tests failed.
+  test/auth_test.dart: "login with wrong password"
+  Expected: <true>
+    Actual: <false>
+
+flutter test fail

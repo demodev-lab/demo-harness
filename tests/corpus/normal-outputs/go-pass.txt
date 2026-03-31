@@ -1,0 +1,3 @@
+ok  	github.com/test/pkg	0.5s
+ok  	github.com/test/pkg/auth	0.3s
+ok  	github.com/test/pkg/models	0.2s

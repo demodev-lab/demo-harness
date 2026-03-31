@@ -473,14 +473,18 @@ def _get_git_root():
 
 
 def main():
-    # Consume stdin (required by hook protocol) but don't rely on it for file detection
+    # Parse Stop hook payload — may contain session context
+    stop_payload = {}
     try:
-        sys.stdin.read()
+        raw = sys.stdin.read()
+        if raw and raw.strip().startswith('{'):
+            stop_payload = json.loads(raw)
     except Exception:
-        pass
+        stop_payload = {}
 
-    # Use git to detect actual file changes — Stop hook payload lacks this info
+    # Use git to detect changed files, excluding harness state files
     changed_paths = _get_git_changed_files()
+    changed_paths = [p for p in changed_paths if not p.endswith('.harness-state.json')]
     if not changed_paths:
         return 0
 
