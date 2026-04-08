@@ -2,6 +2,11 @@
 
 모든 주요 변경 사항을 이 파일에 기록한다.
 
+## [2.0.1] - 2026-04-08
+
+### Fixed
+- **session-doc-cleanup KeyError**: `e['status']` → `e.get('status', '')` — failure-log에 status 컬럼이 없는 프로젝트에서 Stop hook이 크래시하던 버그 수정
+
 ## [2.0.0] - 2026-03-31
 
 Advisory 시스템에서 closed-loop 운영 체제로 전환.

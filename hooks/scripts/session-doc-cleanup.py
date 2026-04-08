@@ -110,7 +110,7 @@ def _normalize_summary(summary):
 
 def _find_repeated_patterns(entries):
     """Find error summaries that appear 2+ times with status 'pending'."""
-    pending = [e for e in entries if e['status'].lower() in ('pending', '-', '')]
+    pending = [e for e in entries if e.get('status', '').lower() in ('pending', '-', '')]
     if not pending:
         return []
 
